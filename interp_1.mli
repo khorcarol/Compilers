@@ -4,6 +4,7 @@ type address = int
 type value = 
      | INT of int 
      | BOOL of bool
+    | LAMBDA of Ast.var * Ast.expr * env
 
 and closure = Ast.var * Ast.expr * env 
 
@@ -13,6 +14,8 @@ and continuation_action =
   | OPER_FST of Ast.expr * env * Ast.oper 
   | TAIL of Ast.expr list * env
   | TEST of Ast.expr * Ast.expr * env
+  | REDARG of Ast.expr *env
+  | APP of value
 
 and continuation = continuation_action  list
 

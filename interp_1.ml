@@ -22,6 +22,7 @@ type address = int
 type value = 
      | INT of int 
      | BOOL of bool
+     | LAMBDA of var * expr * env
 
 and closure = var * expr * env 
 
@@ -31,6 +32,12 @@ and continuation_action =
   | OPER_FST of Ast.expr * env * Ast.oper 
   | TAIL of Ast.expr list * env
   | TEST of Ast.expr * Ast.expr * env
+  | REDARG of Ast.expr *env
+  | APP of value
+  (* Why APPLY(v) Doesn’t Need an Environment - When APPLY executes, 
+  the closure's pre-captured environment is used, not the environment at the call site.
+  The environment at the call site doesn’t affect the closure’s behavior.
+   Only the environment captured at definition time matters. *)
 
 and continuation = continuation_action  list
 
@@ -86,6 +93,7 @@ let rec string_of_value = function
      | INT n          -> string_of_int n 
      | BOOL true         -> "True"
      | BOOL false       -> "False"
+     | LAMBDA (x, e, env) -> "LAMBDA(" ^ x ^ ", " ^ (Ast.string_of_expr e) ^ ", " ^ (string_of_env env) ^ ")"
 
 and string_of_closure (x, e, env) = x ^ ", " ^ (Ast.string_of_expr e) ^  ", " ^ (string_of_env env)
 
@@ -102,6 +110,8 @@ let string_of_continuation_action = function
       "OPER_FST(" ^ (Ast.string_of_expr e) ^ ", " ^ (string_of_env env) ^ ", " ^ (string_of_oper op) ^ ")"
   | TAIL (el , env) -> "TAIL("  ^ (string_of_expr_list el)   ^ ", " ^ (string_of_env env) ^ ")"
   | TEST(e1,e2, env) -> "TEST("  ^ (string_of_expr e1)   ^ ", " ^(string_of_expr e2)  ^"," ^(string_of_env env) ^ ")"
+  | REDARG(e, env) -> "REDARG("  ^ (string_of_expr e)   ^ ", " ^(string_of_env env)  ^ ")"
+  | APP v -> "APP(" ^ (string_of_value v) ^ ")"
 
 let string_of_continuation = string_of_list ";\n " string_of_continuation_action
 
@@ -131,17 +141,26 @@ let step = (function
  | EXAMINE(Seq [e],                     env, k) -> EXAMINE(e, env, k) 
  | EXAMINE(Seq (e :: rest),             env, k) -> EXAMINE(e, env, TAIL (rest, env) :: k) 
   | EXAMINE(If(e1, e2, e3),            env, k) -> EXAMINE(e1, env, TEST(e2,e3,env)::k)
+  | EXAMINE(App(e1,e2),                env, k) -> EXAMINE(e1, env, REDARG(e2, env)::k)
+  | EXAMINE(Var(x),                    env, k) -> COMPUTE(k, List.assoc x env)
  (* EXAMINE --> COMPUTE *) 
  | EXAMINE(Integer n,         _, k) -> COMPUTE(k, INT n) 
  | EXAMINE(Bool b, _, k)             -> COMPUTE(k, BOOL b)
+ | EXAMINE(Lambda(x,e), env, k)     -> COMPUTE(k, LAMBDA(x, e, env))
  (* COMPUTE --> COMPUTE *) 
  | COMPUTE((UNARY op) :: k,    v) -> COMPUTE(k ,(do_unary(op, v)))
  | COMPUTE(OPER(op, v1) :: k, v2) -> COMPUTE(k, do_oper(op, v1, v2))
+ 
  (* COMPUTE --> EXAMINE *) 
  | COMPUTE(OPER_FST (e2, env, op) :: k,         v1)  -> EXAMINE(e2, env, OPER (op, v1) :: k)
  | COMPUTE((TAIL (el, env)) :: k,     _)  ->  EXAMINE(Seq el, env, k) 
-| COMPUTE(TEST(e1, e2, env)::k,   BOOL true)    -> EXAMINE( e1, env, k)
-| COMPUTE(TEST(e1, e2,env )::k,  BOOL false)    -> EXAMINE( e2, env, k)
+| COMPUTE(TEST(e1, _, env)::k,   BOOL true)    -> EXAMINE( e1, env, k)
+| COMPUTE(TEST(_, e2,env )::k,  BOOL false)    -> EXAMINE( e2, env, k)
+| COMPUTE(REDARG(e,env)::k, LAMBDA(x,e1,env1))  -> EXAMINE(e, env, APP(LAMBDA(x,e1,env1))::k)
+| COMPUTE(APP(LAMBDA(lx,le,lenv))::k, v )  -> EXAMINE(le, update(lenv, (lx, v)), k)
+
+
+
  | state -> complain ("step : malformed state = " ^ (string_of_state state) ^ "\n") : state -> 'a)
 
 

@@ -93,6 +93,7 @@ let rec interpret ( e, env, store) =
     | LetFun(f, (x,e1), e2) -> interpret(e2, update(env, (f, LAMBDA(x, e1))), store)
      (* Equivalently, we could've done  App( Lambda (f,e2) , Lambda (x, e1)) *)
 
+(* TODO: Do we really need OCaml built-in functions as in Slang? Could we not do it like this? *)
     
 
 
