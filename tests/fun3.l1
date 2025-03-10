@@ -1,0 +1,1 @@
+let fun f(x:int):int -> int = x + 1 in f(2) end

@@ -1,0 +1,1 @@
+let val x:int = 1 in x + 2 end
