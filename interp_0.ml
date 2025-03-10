@@ -15,6 +15,7 @@ Very much using the structure of the Slang interpreter provided by Tim Griffin
 
 open Ast 
 
+
 let complain = Errors.complain
 
 let verbose = ref false 
@@ -22,12 +23,13 @@ let verbose = ref false
 type address = int 
 
 type store = address -> value 
+and  env = var -> value 
 
 and value = 
      | INT of int 
      | BOOL of bool
+     | LAMBDA of var * expr
 
-type env = var -> value 
 
 type binding = var * value
 
@@ -38,6 +40,7 @@ type bindings = binding list
 let rec string_of_value = function 
      | INT n -> string_of_int n 
      | BOOL b -> string_of_bool b
+     | LAMBDA (x, e) -> "LAMBDA (" ^ x ^ ", " ^ (string_of_expr e) ^ ")"
     
 (* update : (env * binding) -> env 
    update : (store * (address * value)) -> store
@@ -75,6 +78,24 @@ let rec interpret ( e, env, store) =
     | Seq [e]          -> interpret (e, env, store)
     | Seq (e :: rest)  -> let (_,  store1) = interpret(e, env, store) 
                           in interpret(Seq rest, env, store1) 
+    | App (e1, e2)      -> let (v1, store1) = interpret(e1, env, store) in 
+                          let (v2, store2) = interpret(e2, env, store1) in 
+                          (match v1 with 
+                          | LAMBDA (x, e) -> interpret(e, update(env, (x, v2)), store2)
+                          | _ -> complain ("Applying a non-function value: " ^ (string_of_value v1))
+                          )
+    (* Lambdas dont reduce in L2, differs from Slang which e is reduced again *)
+    | Lambda (x, e)    -> (LAMBDA (x, e), store)
+    | Var x            -> (env x, store)
+    | Let (x, e1, e2)  -> let (v1, store1) = interpret(e1, env, store) in 
+                          interpret(e2, update(env, (x, v1)), store1)
+                         
+    | LetFun(f, (x,e1), e2) -> interpret(e2, update(env, (f, LAMBDA(x, e1))), store)
+     (* Equivalently, we could've done  App( Lambda (f,e2) , Lambda (x, e1)) *)
+
+    
+
+
 
 (* env_empty : env *) 
 let empty_env = fun x -> complain (x ^ " is not defined!\n")

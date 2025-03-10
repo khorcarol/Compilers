@@ -5,6 +5,7 @@ type store = address -> value
 and value = 
      | INT of int 
      | BOOL of bool
+     | LAMBDA of Ast.var * Ast.expr
 
 type env = Ast.var -> value 
 

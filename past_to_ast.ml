@@ -3,6 +3,8 @@
    Lifted and amended from the original Slang interpreter
 *)
 
+
+
 let translate_uop = function Past.NEG -> Ast.NEG
 
 let translate_bop = function
@@ -24,6 +26,9 @@ let rec translate_expr = function
   | Past.Let (_, v, _, e1, e2) ->
       Ast.Let (v,  translate_expr e1, translate_expr e2)
   | Past.LetFun (_, f, (x, _, e) ,_, e2) ->
+    (* TODO: if Var f shows up in e, translate to Ast.LetRecFun *)
       Ast.LetFun (f, (x, translate_expr e), translate_expr e2)
   | Past.If (_, e1, e2, e3) ->
       Ast.If (translate_expr e1, translate_expr e2, translate_expr e3)
+
+
