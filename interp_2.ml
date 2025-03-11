@@ -27,6 +27,9 @@ type var = string
 type value = 
      | INT of int 
      | BOOL of bool
+    | LAMBDA of closure
+    | VAR of var
+
 
 and closure = code * env 
 
@@ -35,7 +38,12 @@ and instruction =
   | OPER of oper 
   | PUSH of value 
   | POP 
+  | SWAP
   | TEST of instruction list * instruction list
+  | BIND of var
+  | APPLY
+  | LOOKUP of var
+
 
 and code = instruction list 
 
@@ -66,6 +74,8 @@ let rec string_of_value = function
      | INT n          -> string_of_int n 
      | BOOL true      -> "True"
      | BOOL false     -> "False"
+     | LAMBDA (c, env) -> "LAMBDA(" ^ (string_of_code c) ^ ", " ^ (string_of_env env) ^ ")"
+      | VAR x          -> x
 
 and string_of_closure (c, env) = 
    "(" ^ (string_of_code c) ^ ", " ^ (string_of_env env) ^ ")"
@@ -80,6 +90,10 @@ and string_of_instruction = function
  | PUSH v       -> "PUSH " ^ (string_of_value v)  
  | POP          -> "POP"
  | TEST (c1,c2) -> "TEST (" ^ (string_of_code c1) ^ "," ^(string_of_code c2)^ ")"
+ | BIND x       -> "BIND " ^ x
+ | APPLY        -> "APPLY"
+ | LOOKUP x     -> "LOOKUP " ^ x
+ | SWAP         -> "SWAP"
 
 and string_of_code c = string_of_list ";\n " string_of_instruction c 
 
@@ -156,6 +170,11 @@ let step = function
  | ((OPER op) :: ds,   (V v2) :: (V v1) :: evs, s) -> (ds, V(do_oper(op, v1, v2)) :: evs, s)
  | ((TEST (e1, _))::ds,    V( BOOL true)::evs, s) -> (e1 @ ds, evs, s)
 | ((TEST (_, e2))::ds,    V( BOOL false)::evs, s) -> (e2 @ ds, evs, s)
+| ((BIND x)::ds,        (V v):: evs ,  s) -> (ds, (EV [x, v] ) :: evs, s)
+| (APPLY::ds,             (V (LAMBDA (code, env)):: (EV ev) :: evs), s) -> (code @ ds, EV ev:: EV env ::evs, s )
+| LOOKUP x :: ds, (EV env):: evs, s -> (ds, V(List.assoc x env) :: evs, s)
+| POP :: ds,                  EV env :: evs, s -> (ds, evs, s)
+| SWAP :: ds, (V v2) :: (EV ev) :: evs, s -> (ds, EV ev :: V v2 :: evs, s)
 
  | state -> complain ("step : bad state = " ^ (string_of_interp_state state) ^ "\n")
 
@@ -181,6 +200,11 @@ let rec compile = function
  | Seq [e]        -> compile e
  | Seq (e ::rest) -> (compile e) @ [POP] @ (compile (Seq rest))
  | If (e1, e2, e3) -> (compile e1) @ [TEST(compile e2, compile e3)]
+ | Lambda (x,e)    -> [BIND x; PUSH (LAMBDA(compile e, []))]
+| Var x           -> [LOOKUP x] 
+| App(e1, e2)     -> compile e2 @ compile e1 @ [APPLY; SWAP; POP]
+| Let(x,e1, e2)   -> compile e1 @ [BIND x] @ compile e2
+| LetFun(f, (x, e1), e2) -> compile (Lambda (x,e1)) @ [BIND f]  @ compile e2
 
 (* The initial L1 state is the L1 state : all locations contain 0 *) 
 

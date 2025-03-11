@@ -6,6 +6,8 @@ type var = string
 type value = 
      | INT of int 
      | BOOL of bool
+    | LAMBDA of closure
+    | VAR of var
 
 and closure = code * env 
 
@@ -15,7 +17,12 @@ and instruction =
   | OPER of Ast.oper   
   | PUSH of value 
   | POP 
+  | SWAP
   | TEST of instruction list * instruction list
+  | BIND of Ast.var
+  | APPLY
+  | LOOKUP of Ast.var
+  
 
 and code = instruction list 
 

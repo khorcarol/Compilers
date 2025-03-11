@@ -16,7 +16,7 @@ let report_expecting e msg t =
 	      "\nhas type " ^ t_str ^ ", but expecting " ^ msg) 
 
 let report_types_not_equal loc t1 t2 = 
-    let loc_str = string_of_loc loc in 
+let loc_str = string_of_loc loc in 
     let t1_str = string_of_type t1 in 
     let t2_str = string_of_type t2 in 
     complain ("Error near location " ^ loc_str ^ 
