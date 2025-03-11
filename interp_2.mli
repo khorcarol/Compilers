@@ -6,7 +6,7 @@ type var = string
 type value = 
      | INT of int 
      | BOOL of bool
-    | LAMBDA of closure
+    | CLOSURE of closure
     | VAR of var
 
 and closure = code * env 
@@ -22,6 +22,8 @@ and instruction =
   | BIND of Ast.var
   | APPLY
   | LOOKUP of Ast.var
+    | MKCLOSURE of code
+
   
 
 and code = instruction list 

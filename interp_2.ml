@@ -27,7 +27,7 @@ type var = string
 type value = 
      | INT of int 
      | BOOL of bool
-    | LAMBDA of closure
+    | CLOSURE of closure
     | VAR of var
 
 
@@ -43,6 +43,8 @@ and instruction =
   | BIND of var
   | APPLY
   | LOOKUP of var
+  | MKCLOSURE of code
+
 
 
 and code = instruction list 
@@ -74,8 +76,8 @@ let rec string_of_value = function
      | INT n          -> string_of_int n 
      | BOOL true      -> "True"
      | BOOL false     -> "False"
-     | LAMBDA (c, env) -> "LAMBDA(" ^ (string_of_code c) ^ ", " ^ (string_of_env env) ^ ")"
       | VAR x          -> x
+      | CLOSURE (c, env) -> "CLOSURE(" ^ (string_of_code c) ^ ", " ^ (string_of_env env) ^ ")"
 
 and string_of_closure (c, env) = 
    "(" ^ (string_of_code c) ^ ", " ^ (string_of_env env) ^ ")"
@@ -94,6 +96,7 @@ and string_of_instruction = function
  | APPLY        -> "APPLY"
  | LOOKUP x     -> "LOOKUP " ^ x
  | SWAP         -> "SWAP"
+ | MKCLOSURE c  -> "MKCLOSURE " ^ (string_of_code c)
 
 and string_of_code c = string_of_list ";\n " string_of_instruction c 
 
@@ -143,7 +146,20 @@ let update(env, (x, v)) = (x, v) :: env
   | (V _) :: rest -> evs_to_env rest 
   | (EV env) :: rest -> env @ (evs_to_env rest) 
     
-    
+let rec lookup_opt = function
+  | [], _ -> None
+  | (y, v) :: _, x when x = y -> Some v
+  | (_, _) :: rest, x -> lookup_opt (rest, x)
+let rec search (evs, x) =
+  match evs with
+  | [] -> complain " not defined!\n" 
+  | (V _) :: rest -> search (rest, x)
+  | (EV env) :: rest ->
+    (match lookup_opt(env, x) with
+    | None -> search (rest, x)
+    | Some v -> v
+    )
+
 let readint () = let _ = print_string "input> " in read_int() 
 
 let do_unary = function 
@@ -171,10 +187,11 @@ let step = function
  | ((TEST (e1, _))::ds,    V( BOOL true)::evs, s) -> (e1 @ ds, evs, s)
 | ((TEST (_, e2))::ds,    V( BOOL false)::evs, s) -> (e2 @ ds, evs, s)
 | ((BIND x)::ds,        (V v):: evs ,  s) -> (ds, (EV [x, v] ) :: evs, s)
-| (APPLY::ds,             (V (LAMBDA (code, env)):: (EV ev) :: evs), s) -> (code @ ds, EV ev:: EV env ::evs, s )
-| LOOKUP x :: ds, (EV env):: evs, s -> (ds, V(List.assoc x env) :: evs, s)
+| (APPLY::ds,             (V (CLOSURE (code, env))):: (V v) :: evs, s) -> (code @ ds, V v :: EV env:: evs, s )
+| LOOKUP x :: ds,  evs, s -> (ds, V(search (evs, x)) :: evs, s)
 | POP :: ds,                  EV env :: evs, s -> (ds, evs, s)
 | SWAP :: ds, (V v2) :: (EV ev) :: evs, s -> (ds, EV ev :: V v2 :: evs, s)
+| MKCLOSURE code :: ds,  evs, s -> (ds, V (CLOSURE (code, evs_to_env evs)) :: evs, s)
 
  | state -> complain ("step : bad state = " ^ (string_of_interp_state state) ^ "\n")
 
@@ -200,11 +217,16 @@ let rec compile = function
  | Seq [e]        -> compile e
  | Seq (e ::rest) -> (compile e) @ [POP] @ (compile (Seq rest))
  | If (e1, e2, e3) -> (compile e1) @ [TEST(compile e2, compile e3)]
- | Lambda (x,e)    -> [BIND x; PUSH (LAMBDA(compile e, []))]
+| Lambda (x,e)    -> [MKCLOSURE (BIND x ::compile e @ [SWAP; POP]) ]
+(* Swap + Pop here to remove environment remove environment created by BIND x  which is the scope of e *)
 | Var x           -> [LOOKUP x] 
 | App(e1, e2)     -> compile e2 @ compile e1 @ [APPLY; SWAP; POP]
+(* Swap + Pop here to remove environment created by Apply which is the scope of the lambda *)
 | Let(x,e1, e2)   -> compile e1 @ [BIND x] @ compile e2
-| LetFun(f, (x, e1), e2) -> compile (Lambda (x,e1)) @ [BIND f]  @ compile e2
+| LetFun(f, (x, e1), e2) -> [MKCLOSURE (BIND x:: compile e1 @ [SWAP; POP])] @ [BIND f]  @ compile e2 @ [SWAP; POP]
+(* Swap + Pop here to remove environment created by BIND f which is the scope of e2 *)
+
+
 
 (* The initial L1 state is the L1 state : all locations contain 0 *) 
 
