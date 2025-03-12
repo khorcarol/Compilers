@@ -1,24 +1,31 @@
-
+open Ast
 type address = int 
 
 type label = string 
 
 type location = label * (address option) 
 
+
 type value = 
   | INT of int
-  | BOOL of bool 
+  | BOOL of bool  | CLOSURE of location * env | VAR of var
 
 and instruction = 
-  | PUSH of value 
-  | UNARY of Ast.unary_oper 
-  | OPER of Ast.oper 
-  | POP 
-  | TEST of location 
+  | PUSH of value
+  | UNARY of unary_oper
+  | OPER of oper
+  | POP
+  | TEST of location
   | CASE of location
   | GOTO of location
-  | LABEL of label 
-  | HALT 
+  | LABEL of label
+  | HALT
+  | BIND of var
+  | APPLY
+  | LOOKUP of var
+  | MKCLOSURE of location
+  | SWAP
+  | RETURN
 
 and code = instruction list 
 
